@@ -1,0 +1,10 @@
+--- fs/susfs.c.bak	2025-05-26 23:26:10.275372747 -0400
++++ fs/susfs.c	2025-05-26 23:31:54.745868340 -0400
+@@ -15,6 +15,7 @@
+ #include <linux/statfs.h>
+ #include <linux/susfs.h>
+ #include "mount.h"
++#include <linux/magic.h>
+ 
+ static spinlock_t susfs_spin_lock;
+ 
