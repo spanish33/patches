@@ -1,0 +1,39 @@
+From 6db76e9fef1d1cceac026c225ce63e134f4b1904 Mon Sep 17 00:00:00 2001
+From: "Adam W. Willis" <return.of.octobot@gmail.com>
+Date: Sun, 2 Mar 2025 10:35:45 -0500
+Subject: [PATCH] Input: Implement support for KernelSU built-in SafeMode
+
+https://kernelsu.org/guide/how-to-integrate-for-non-gki.html
+
+Signed-off-by: Adam W. Willis <return.of.octobot@gmail.com>
+---
+ drivers/input/input.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+index 78be582b5..a892ceb72 100644
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -420,11 +420,19 @@ void input_handle_event(struct input_dev *dev,
+  * to 'seed' initial state of a switch or initial position of absolute
+  * axis, etc.
+  */
++#ifdef CONFIG_KSU
++extern bool ksu_input_hook __read_mostly;
++extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
++#endif
+ void input_event(struct input_dev *dev,
+ 		 unsigned int type, unsigned int code, int value)
+ {
+ 	unsigned long flags;
+ 
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_input_hook))
++		ksu_handle_input_handle_event(&type, &code, &value);
++#endif
+ 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
+ 
+ 		spin_lock_irqsave(&dev->event_lock, flags);
+-- 
+2.43.0
+
