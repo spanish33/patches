@@ -1,0 +1,43 @@
+From 2f611b890af5ea4a71d8f1f9dce9f5df172fe9eb Mon Sep 17 00:00:00 2001
+From: spanish33
+Date: Wed, 11 Jun 2025 07:48:14 -0400
+Subject: [PATCH] Clang LTO test
+
+---
+ .../edgetpu/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c    | 4 +++-
+ .../gxp/zuma/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c   | 4 +++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/google-modules/edgetpu/rio/drivers/edgetpu/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c b/google-modules/edgetpu/rio/drivers/edgetpu/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c
+index d49935c2f38c..ef73419a6f8c 100644
+--- a/google-modules/edgetpu/rio/drivers/edgetpu/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c
++++ b/google-modules/edgetpu/rio/drivers/edgetpu/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c
+@@ -560,7 +560,9 @@ void gcip_mailbox_release(struct gcip_mailbox *mailbox)
+ 	gcip_mailbox_set_data(mailbox, NULL);
+ }
+ 
+-static void gcip_mailbox_do_consume_responses(struct gcip_mailbox *mailbox, bool trylock)
++#undef noinline
++static __attribute__((used, noinline, visibility("hidden"))) void gcip_mailbox_do_consume_responses(struct gcip_mailbox *mailbox, bool trylock)
++
+ {
+ 	void *responses;
+ 	u32 i;
+diff --git a/google-modules/gxp/zuma/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c b/google-modules/gxp/zuma/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c
+index d49935c2f38c..ef73419a6f8c 100644
+--- a/google-modules/gxp/zuma/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c
++++ b/google-modules/gxp/zuma/gcip-kernel-driver/drivers/gcip/gcip-mailbox.c
+@@ -560,7 +560,9 @@ void gcip_mailbox_release(struct gcip_mailbox *mailbox)
+ 	gcip_mailbox_set_data(mailbox, NULL);
+ }
+ 
+-static void gcip_mailbox_do_consume_responses(struct gcip_mailbox *mailbox, bool trylock)
++#undef noinline
++static __attribute__((used, noinline, visibility("hidden"))) void gcip_mailbox_do_consume_responses(struct gcip_mailbox *mailbox, bool trylock)
++
+ {
+ 	void *responses;
+ 	u32 i;
+-- 
+2.43.0
+
