@@ -1,0 +1,53 @@
+From 0c533860850b584c91985c3b92d8b329345e8787 Mon Sep 17 00:00:00 2001
+From: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Date: Tue, 10 Jun 2025 22:33:32 -0400
+Subject: [PATCH 4/4] KernelSU: Handle devpts via security_inode_permission LSM
+
+KernelSU-Next/KernelSU-Next#480
+
+Simplify devpts interception by replacing
+pts_unix98_lookup/devpts_get_priv hooks with a
+security_inode_permission LSM hook, forwarding requests to the
+original handler as needed.
+
+Signed-off-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Signed-off-by: Adam W. Willis <return.of.octobot@gmail.com>
+---
+ kernel/core_hook.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/kernel/core_hook.c b/kernel/core_hook.c
+index 5ae5b6b2..dcc6042b 100644
+--- a/kernel/core_hook.c
++++ b/kernel/core_hook.c
+@@ -999,6 +999,19 @@ __maybe_unused int ksu_kprobe_exit(void)
+ 	return 0;
+ }
+ 
++extern int ksu_handle_devpts(struct inode *inode);
++
++static int ksu_inode_permission(struct inode *inode, int mask)
++{
++	if (unlikely(inode->i_sb && inode->i_sb->s_magic == DEVPTS_SUPER_MAGIC)) {
++#ifdef CONFIG_KSU_DEBUG
++		pr_info("%s: devpts inode accessed with mask: %x\n", __func__, mask);
++#endif
++		ksu_handle_devpts(inode);
++	}
++	return 0;
++}
++
+ static int ksu_task_prctl(int option, unsigned long arg2, unsigned long arg3,
+ 			  unsigned long arg4, unsigned long arg5)
+ {
+@@ -1023,6 +1036,7 @@ static struct security_hook_list ksu_hooks[] = {
+ 	LSM_HOOK_INIT(task_prctl, ksu_task_prctl),
+ 	LSM_HOOK_INIT(inode_rename, ksu_inode_rename),
+ 	LSM_HOOK_INIT(task_fix_setuid, ksu_task_fix_setuid),
++	LSM_HOOK_INIT(inode_permission, ksu_inode_permission),
+ };
+ 
+ void __init ksu_lsm_hook_init(void)
+-- 
+2.43.0
+
