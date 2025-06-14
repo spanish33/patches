@@ -17,7 +17,7 @@
 -ccflags-y += -DKSU_VERSION=16
 -endif
 +# Hardcoded KernelSU version
-+KSU_VERSION := 12665
++KSU_VERSION := 12603
 +ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 +
  
