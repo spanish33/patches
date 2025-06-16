@@ -1,0 +1,54 @@
+From 47b9e141a538a8ce9bde934b8cf743e84a12f771 Mon Sep 17 00:00:00 2001
+From: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Date: Sat, 8 Mar 2025 09:44:40 -0500
+Subject: [PATCH 4/5] KernelSU: Introduce ksu_handle_execve_ksud
+
+backslashxx/KernelSU#5
+
+Adapted from sys_execve_handler_pre, create a shim for
+ksu_handle_execveat_ksud in order to facilitate syscall
+interception for all manually integrated hooks.
+
+Signed-off-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Signed-off-by: Adam W. Willis <return.of.octobot@gmail.com>
+---
+ kernel/ksud.c | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/kernel/ksud.c b/kernel/ksud.c
+index 383564b53eae..06df1c2e4d2b 100644
+--- a/kernel/ksud.c
++++ b/kernel/ksud.c
+@@ -535,6 +535,29 @@ static void do_stop_input_hook(struct work_struct *work)
+ {
+ 	unregister_kprobe(&input_event_kp);
+ }
++#else
++int ksu_handle_execve_ksud(const char __user *filename_user,
++                           const char __user *const __user *__argv)
++{
++	struct user_arg_ptr argv = { .ptr.native = __argv };
++	struct filename filename_in, *filename_p;
++	char path[32];
++
++	if (!ksu_execveat_hook) {
++		return 0;
++	}
++
++	if (!filename_user)
++		return 0;
++
++	memset(path, 0, sizeof(path));
++	ksu_strncpy_from_user_nofault(path, filename_user, 32);
++
++	filename_in.name = path;
++	filename_p = &filename_in;
++
++	return ksu_handle_execveat_ksud(AT_FDCWD, &filename_p, &argv, NULL, NULL);
++}
+ #endif
+ 
+ static void stop_vfs_read_hook()
+-- 
+2.43.0
+
