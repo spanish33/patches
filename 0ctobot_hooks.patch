@@ -1,0 +1,132 @@
+From 34aa8b7a8ca4b6d852795c435b0365524b7789de Mon Sep 17 00:00:00 2001
+From: "Adam W. Willis" <return.of.octobot@gmail.com>
+Date: Sun, 15 Jun 2025 20:33:50 -0400
+Subject: [PATCH] fs: Manually integrate scope-optimized KernelSU hooks
+
+backslashxx/KernelSU#5
+
+This kernel is in the unique position of technically being a GKI,
+that has been de-GKI'ed, and lacks MODULE support. As a result,
+newer methods of automatic integration by way of exploiting KPROBES
+and/or LKM will not work. Thus, we'll need to adopt the original
+approach of hard coding KernelSU hooks as outlined here:
+
+https://kernelsu.org/guide/how-to-integrate-for-non-gki.html
+
+Additionally, refactor these original hooks to be more
+appropriately targeted so as to reduce the scope of interception
+without interfering with functionality.
+
+Co-Authored-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Signed-off-by: Adam W. Willis <return.of.octobot@gmail.com>
+---
+ fs/exec.c       | 14 ++++++++++++++
+ fs/open.c       |  7 +++++++
+ fs/read_write.c |  9 +++++++++
+ fs/stat.c       |  6 ++++++
+ 4 files changed, 36 insertions(+)
+
+diff --git a/fs/exec.c b/fs/exec.c
+index 1e1f54f09522..e288b23153f0 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -2123,11 +2123,25 @@ void set_dumpable(struct mm_struct *mm, int value)
+ 	set_mask_bits(&mm->flags, MMF_DUMPABLE_MASK, value);
+ }
+ 
++#ifdef CONFIG_KSU
++extern bool ksu_execveat_hook __read_mostly;
++extern int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
++                                      void *__never_use_argv, void *__never_use_envp,
++                                      int *__never_use_flags);
++extern int ksu_handle_execve_ksud(const char __user *filename_user,
++                                  const char __user *const __user *__argv);
++#endif
+ SYSCALL_DEFINE3(execve,
+ 		const char __user *, filename,
+ 		const char __user *const __user *, argv,
+ 		const char __user *const __user *, envp)
+ {
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_execveat_hook))
++		ksu_handle_execve_ksud(filename, argv);
++	else
++		ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
++#endif
+ 	return do_execve(getname(filename), argv, envp);
+ }
+ 
+diff --git a/fs/open.c b/fs/open.c
+index 026a4047cb5d..4e5f15d67aa9 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -364,6 +364,10 @@ COMPAT_SYSCALL_DEFINE6(fallocate, int, fd, int, mode, compat_arg_u64_dual(offset
+ }
+ #endif
+ 
++#ifdef CONFIG_KSU
++extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
++                                int *flags);
++#endif
+ /*
+  * access() needs to use the real uid/gid, not the effective uid/gid.
+  * We do this by temporarily clearing all FS-related capabilities and
+@@ -492,6 +496,9 @@ out:
+ 
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
++#ifdef CONFIG_KSU
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
+ 	return do_faccessat(dfd, filename, mode, 0);
+ }
+ 
+diff --git a/fs/read_write.c b/fs/read_write.c
+index 7a2ff6157eda..88f969aedad4 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -618,8 +618,17 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
+ 	return ret;
+ }
+ 
++#ifdef CONFIG_KSU
++extern bool ksu_vfs_read_hook __read_mostly;
++extern int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
++                               size_t *count_ptr);
++#endif
+ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+ {
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_vfs_read_hook)) 
++		ksu_handle_sys_read(fd, &buf, &count);
++#endif
+ 	return ksys_read(fd, buf, count);
+ }
+ 
+diff --git a/fs/stat.c b/fs/stat.c
+index ef50573c72a2..cff531ce47d9 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -427,6 +427,9 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#ifdef CONFIG_KSU
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
++#endif
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -434,6 +437,9 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+-- 
+2.43.0
+
