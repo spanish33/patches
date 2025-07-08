@@ -1,9 +1,9 @@
---- kernel/apk_sign.c.bak	2025-06-12 08:56:51.229899328 -0400
-+++ kernel/apk_sign.c	2025-06-12 09:16:24.420674754 -0400
-@@ -316,5 +316,12 @@
+--- kernel/apk_sign.c.bak	2025-07-08 19:05:53.762095735 -0400
++++ kernel/apk_sign.c	2025-07-08 19:07:35.121129606 -0400
+@@ -333,5 +333,12 @@
+ 		return false;
+ 	}
  
- bool ksu_is_manager_apk(char *path)
- {
 -	return check_v2_signature(path, EXPECTED_NEXT_SIZE, EXPECTED_NEXT_HASH);
 +#ifdef CONFIG_KSU_SUSFS
 +	return (check_v2_signature(path, EXPECTED_NEXT_SIZE, EXPECTED_NEXT_HASH) 
@@ -14,4 +14,3 @@
 + 	return check_v2_signature(path, EXPECTED_NEXT_SIZE, EXPECTED_NEXT_HASH);
 +#endif
  }
- \ No newline at end of file
