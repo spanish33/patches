@@ -1,0 +1,125 @@
+From 6cfc893f35366525b5d51f024e927a8643bb44f0 Mon Sep 17 00:00:00 2001
+From: "Adam W. Willis" <return.of.octobot@gmail.com>
+Date: Sun, 13 Jul 2025 15:42:45 -0400
+Subject: [PATCH] fs: Manually integrate scope-optimized KernelSU hooks v1.5
+
+backslashxx/KernelSU#5
+
+This kernel is in the unique position of technically being a GKI,
+that has been de-GKI'ed, and lacks MODULE support. As a result,
+newer methods of automatic integration by way of exploiting KPROBES
+and/or LKM will not work. Thus, we'll need to adopt the original
+approach of hard coding KernelSU hooks as outlined here:
+
+https://kernelsu.org/guide/how-to-integrate-for-non-gki.html
+
+Additionally, refactor these original hooks to be more
+appropriately targeted so as to reduce the scope of interception
+without interfering with functionality.
+
+Co-Authored-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Signed-off-by: Adam W. Willis <return.of.octobot@gmail.com>
+---
+ fs/exec.c       | 9 +++++++++
+ fs/open.c       | 8 ++++++++
+ fs/read_write.c | 9 +++++++++
+ fs/stat.c       | 8 ++++++++
+ 4 files changed, 34 insertions(+)
+
+diff --git a/fs/exec.c b/fs/exec.c
+index 1e1f54f09522..63108413bf79 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -2123,11 +2123,20 @@ void set_dumpable(struct mm_struct *mm, int value)
+ 	set_mask_bits(&mm->flags, MMF_DUMPABLE_MASK, value);
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot))
++extern int ksu_handle_execve_sucompat(int *fd,	const char __user **filename_user,
++                                      void *__never_use_argv, void *__never_use_envp,
++                                      int *__never_use_flags);
++#endif
+ SYSCALL_DEFINE3(execve,
+ 		const char __user *, filename,
+ 		const char __user *const __user *, argv,
+ 		const char __user *const __user *, envp)
+ {
++#ifdef CONFIG_KSU
++	ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
++#endif
+ 	return do_execve(getname(filename), argv, envp);
+ }
+ 
+diff --git a/fs/open.c b/fs/open.c
+index 026a4047cb5d..517fe76ec418 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -490,8 +490,16 @@ static long do_faccessat(int dfd, const char __user *filename, int mode, int fla
+ 	return res;
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot)) 
++extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
++                                int *mode, int *flags);
++#endif
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
++#ifdef CONFIG_KSU
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
+ 	return do_faccessat(dfd, filename, mode, 0);
+ }
+ 
+diff --git a/fs/read_write.c b/fs/read_write.c
+index 7a2ff6157eda..88f969aedad4 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -618,8 +618,17 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
+ 	return ret;
+ }
+ 
++#ifdef CONFIG_KSU
++extern bool ksu_vfs_read_hook __read_mostly;
++extern int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
++                               size_t *count_ptr);
++#endif
+ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+ {
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_vfs_read_hook)) 
++		ksu_handle_sys_read(fd, &buf, &count);
++#endif
+ 	return ksys_read(fd, buf, count);
+ }
+ 
+diff --git a/fs/stat.c b/fs/stat.c
+index ef50573c72a2..6ad2e31018c9 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -427,6 +427,11 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot)) 
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user,
++                           int *flags);
++#endif
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -434,6 +439,9 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+-- 
+2.43.0
+
