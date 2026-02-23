@@ -1,0 +1,10 @@
+diff --git a/manager/app/src/main/java/me/weishu/kernelsu/ui/screen/HomePager.kt b/manager/app/src/main/java/me/weishu/kernelsu/ui/screen/HomePager.kt
+--- a/manager/app/src/main/java/me/weishu/kernelsu/ui/screen/HomePager.kt
++++ b/manager/app/src/main/java/me/weishu/kernelsu/ui/screen/HomePager.kt
+@@
+-                    if (ksuVersion != null && !Natives.isLkmMode) {
+-                        WarningCard(
+-                            stringResource(id = R.string.home_gki_warning),
+-                            themeMode
+-                        )
+-                    }
